@@ -1,0 +1,20 @@
+<![CDATA[# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Scraped raw data (processed into docs/)
+www.ccleaks.com*.md
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Gemini/Agent files
+.gemini/
+.agents/
+]]>
