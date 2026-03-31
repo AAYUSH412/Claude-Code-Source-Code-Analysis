@@ -29,36 +29,40 @@ Claude Code is a ~512K-line TypeScript application built with [Bun](https://bun.
 
 ### Core Architecture Diagram
 
-```mermaid
-flowchart TD
-    A["CLI Entry (cli.tsx)<br>Fast-path check → Commander.js routing"] --> B["Initialization Pipeline<br>Config → Auth → GrowthBook → Tools → MCP → Prompt"]
-    
-    B --> REPL
-    
-    subgraph REPL ["REPL (Ink + Yoga Flexbox)"]
-        direction TB
-        
-        subgraph Query ["Query Processing"]
-            direction LR
-            IH["Input Handler"] --> QE["Query Engine"] --> API["API Stream (Anthropic SDK)"]
-        end
-        
-        STE["StreamingToolExecutor"]
-        
-        API --> STE
-        
-        subgraph Tools ["Tools"]
-            direction LR
-            T1["Bash Tool"]
-            T2["File Edit"]
-            T3["Web Fetch"]
-            T4["Agent Tool"]
-            T5["MCP Tool"]
-        end
-        
-        STE --> Tools
-        Tools --> PSP["Post-Sampling Pipeline<br>AutoCompact → Memory Extract → Dream Mode"]
-    end
+```
+┌─────────────────────────────────────────────────────┐
+│                    CLI Entry (cli.tsx)                │
+│          Fast-path check → Commander.js routing      │
+└─────────────┬───────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────┐
+│              Initialization Pipeline                  │
+│  Config → Auth → GrowthBook → Tools → MCP → Prompt  │
+└─────────────┬───────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────┐
+│              REPL (Ink + Yoga Flexbox)               │
+│                                                      │
+│  ┌──────────┐  ┌───────────┐  ┌──────────────────┐ │
+│  │ Input    │→ │ Query     │→ │ API Stream       │ │
+│  │ Handler  │  │ Engine    │  │ (Anthropic SDK)  │ │
+│  └──────────┘  └───────────┘  └────────┬─────────┘ │
+│                                         │           │
+│  ┌──────────────────────────────────────▼─────────┐ │
+│  │          StreamingToolExecutor                   │ │
+│  │   ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐   │ │
+│  │   │Bash │ │File │ │Web  │ │Agent│ │MCP  │   │ │
+│  │   │Tool │ │Edit │ │Fetch│ │Tool │ │Tool │   │ │
+│  │   └─────┘ └─────┘ └─────┘ └─────┘ └─────┘   │ │
+│  └───────────────────────────┬─────────────────────┘ │
+│                               │                      │
+│  ┌────────────────────────────▼────────────────────┐ │
+│  │           Post-Sampling Pipeline                 │ │
+│  │   AutoCompact → Memory Extract → Dream Mode     │ │
+│  └──────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -115,11 +119,14 @@ Tools are assembled via `getAllBaseTools()` which is the single source of truth 
 
 ### Tool Pool Assembly
 
-```mermaid
-flowchart TD
-    T1["getAllBaseTools()<br>Source of truth for all tools"] --> T2["filterToolsByDenyRules()<br>Strip denied tools (Claude never sees them)"]
-    T2 --> T3["getTools()<br>Mode-aware filtering (simple/REPL/coordinator)"]
-    T3 --> T4["assembleToolPool()<br>Merge with MCP tools, deduplicate, sort for cache stability"]
+```
+getAllBaseTools()                    Source of truth for all tools
+    ↓
+filterToolsByDenyRules()            Strip denied tools (Claude never sees them)
+    ↓
+getTools()                          Mode-aware filtering (simple/REPL/coordinator)
+    ↓
+assembleToolPool()                  Merge with MCP tools, deduplicate, sort for cache stability
 ```
 
 **Cache stability:** Built-in tools form a contiguous sorted prefix, MCP tools are appended after. This prevents prompt cache invalidation when MCP tools change.
@@ -229,11 +236,11 @@ Claude Code uses a **full React reconciler for the terminal** — not just a tex
 
 ### Connection Lifecycle
 
-```mermaid
-flowchart LR
-    C1["Configure<br>settings.json"] --> C2["Connect<br>transport negotiation"]
-    C2 --> C3["Capability Exchange<br>server info + capabilities"]
-    C3 --> C4["Tool Discovery<br>tool schemas merged into pool"]
+```
+Configure → Connect → Capability Exchange → Tool Discovery
+    ↓          ↓              ↓                    ↓
+settings   transport    server info           tool schemas
+  .json    negotiation  + capabilities       merged into pool
 ```
 
 ### Tool Wrapping
@@ -288,10 +295,12 @@ Priority order:
 
 Two-stage classifier:
 
-```mermaid
-flowchart TD
-    S1["Stage 1: Fast static analysis (AST parsing)"] --> S2["Stage 2: Thinking classifier (Claude evaluates safety)"]
-    S2 --> S3["Risk Levels: LOW → MEDIUM → HIGH"]
+```
+Stage 1: Fast static analysis (AST parsing)
+    ↓
+Stage 2: Thinking classifier (Claude evaluates safety)
+    ↓
+Risk Levels: LOW → MEDIUM → HIGH
 ```
 
 The YOLO classifier (`classifyYoloAction()`) uses Claude itself to evaluate its own tool use safety in auto mode.
@@ -304,31 +313,26 @@ The YOLO classifier (`classifyYoloAction()`) uses Claude itself to evaluate its 
 
 ### Token Budget Architecture
 
-```mermaid
-flowchart TD
-    subgraph Pre["Pre-Compaction Context Window (200K)"]
-        direction LR
-        SP1["System Prompt<br>5-15K"]
-        M1["Memory<br>2-10K"]
-        CH1["Conversation History<br>(grows)"]
-        TR1["Tool Results<br>(grows)"]
-        F1["Free<br>~13K Buffer"]
-        
-        SP1 --> M1 --> CH1 --> TR1 --> F1
-    end
-    
-    subgraph Post["After Compaction (Auto-compact triggers at ~187K)"]
-        direction LR
-        SP2["System Prompt"]
-        M2["Memory"]
-        S2["Summary"]
-        R2["Recent History"]
-        F2["Free<br>~60% freed"]
-        
-        SP2 --> M2 --> S2 --> R2 --> F2
-    end
-    
-    Pre --> Post
+```
+┌──────────────────────────────────────────────────────┐
+│                200K Context Window                    │
+│                                                      │
+│ ┌──────┐┌────┐┌─────────────────┐┌──────────┐┌────┐│
+│ │System││Mem ││  Conversation   ││  Tool    ││Free ││
+│ │Prompt││ory ││  History        ││  Results ││    ││
+│ │5-15K ││2-10││  (grows)        ││  (grows) ││    ││
+│ └──────┘└────┘└─────────────────┘└──────────┘└────┘│
+│                                                      │
+│ ⚡ Auto-compact triggers at ~80% (187K tokens)       │
+└──────────────────────────────────────────────────────┘
+
+After compaction:
+┌──────────────────────────────────────────────────────┐
+│ ┌──────┐┌────┐┌───────┐┌──────┐┌──────────────────┐│
+│ │System││Mem ││Summary││Recent││    ~60% freed     ││
+│ │Prompt││ory ││       ││      ││                   ││
+│ └──────┘└────┘└───────┘└──────┘└──────────────────┘│
+└──────────────────────────────────────────────────────┘
 ```
 
 ### Key Constants
@@ -405,11 +409,16 @@ Teams are defined in `.claude/teams/<name>.json`:
 
 ### Bridge Architecture
 
-```mermaid
-flowchart LR
-    Client["Client<br>(Phone/Web)"] <-.-> Bridge["Bridge<br>Server"]
-    Bridge <-.-> CLI["Local CLI<br>(Claude)"]
-    Bridge <--> Transport["poll → WebSocket"]
+```
+┌─────────────┐       ┌──────────────┐       ┌─────────────┐
+│   Client    │       │   Bridge     │       │  Local CLI  │
+│ (Phone/Web) │◄─────►│   Server     │◄─────►│  (Claude)   │
+└─────────────┘       └──────────────┘       └─────────────┘
+                         │
+                   ┌─────┴─────┐
+                   │ poll →    │
+                   │ WebSocket │
+                   └───────────┘
 ```
 
 ### Security
@@ -530,13 +539,24 @@ The server supports "allow with modifications" — approving a tool call while c
 
 ### Two-Phase Detection
 
-```mermaid
-flowchart TD
-    Pre["Pre-call: recordPromptState()<br>Captures: system prompt, tools, model, betas, effort, cache scope/TTL"]
-    Post["Post-call: checkResponseForCacheBreak()<br>Compares: cache_read tokens vs expected"]
-    Detect["Granular Detection:<br>- System prompt char delta<br>- Per-tool schema hash<br>- Scope/TTL flips<br>- Effort value changes<br>- Extra body params<br>- Beta header adds/removals<br>- Auto-mode toggles"]
-    
-    Pre --> Post --> Detect
+```
+Pre-call:  recordPromptState()
+    ↓
+    Captures: system prompt, tools, model, betas,
+              effort, cache scope/TTL
+
+Post-call: checkResponseForCacheBreak()
+    ↓
+    Compares: cache_read tokens vs expected
+
+Granular Detection:
+    - System prompt char delta
+    - Per-tool schema hash
+    - Scope/TTL flips
+    - Effort value changes
+    - Extra body params
+    - Beta header adds/removals
+    - Auto-mode toggles
 ```
 
 ### Thresholds & Heuristics

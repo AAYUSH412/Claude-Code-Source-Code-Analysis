@@ -92,12 +92,12 @@ Internal codename: **Penguin Mode** (`penguinModeOrgEnabled` in config)
 
 Five-layer priority cascade:
 
-```mermaid
-flowchart TD
-    M1["Priority 1: /model session override (highest)"] --> M2["Priority 2: --model CLI flag"]
-    M2 --> M3["Priority 3: ANTHROPIC_MODEL env var"]
-    M3 --> M4["Priority 4: settings file"]
-    M4 --> M5["Priority 5: Built-in default (lowest)"]
+```
+Priority 1: /model session override        (highest)
+Priority 2: --model CLI flag
+Priority 3: ANTHROPIC_MODEL env var
+Priority 4: settings file
+Priority 5: Built-in default               (lowest)
 ```
 
 **Defaults by user tier:**
@@ -180,15 +180,14 @@ Every tool implements an extensive interface:
 
 **Source:** `src/utils/claudemd.ts:1-26`
 
-```mermaid
-flowchart TD
-    P1["/etc/claude-code/CLAUDE.md<br>System-wide defaults"] --> P2["~/.claude/CLAUDE.md<br>User-level config"]
-    P2 --> P3["project/CLAUDE.md<br>Project root"]
-    P2 --> P4["project/.claude/CLAUDE.md<br>Alternative location"]
-    P2 --> P5["project/.claude/rules/*.md<br>Rule files"]
-    P3 --> P6["CLAUDE.local.md<br>Local overrides (highest)"]
-    P4 --> P6
-    P5 --> P6
+```
+Priority (lowest → highest):
+├── /etc/claude-code/CLAUDE.md        System-wide defaults
+├── ~/.claude/CLAUDE.md               User-level config
+├── project/CLAUDE.md                 Project root
+│   project/.claude/CLAUDE.md         Alternative location
+│   project/.claude/rules/*.md        Rule files
+└── CLAUDE.local.md                   Local overrides (highest)
 ```
 
 **Features:**
@@ -293,9 +292,8 @@ A significant competitive differentiator — granular two-phase cache break dete
 
 5-phase interview workflow:
 
-```mermaid
-flowchart LR
-    I["Interview"] --> IP["Implementation Planning"] --> E["Execution"] --> V["Verification"] --> R["Review"]
+```
+Interview → Implementation Planning → Execution → Verification → Review
 ```
 
 | Property             | Value                                                                |
@@ -348,12 +346,12 @@ flowchart LR
 
 Serious security engineering for containerized environments:
 
-```mermaid
-flowchart TD
-    S1["1. Read session token from /run/ccr/session_token"] --> S2["2. Set prctl(PR_SET_DUMPABLE, 0) → block ptrace from same-UID processes"]
-    S2 --> S3["3. Download CCR CA certificate → concatenate with system bundle"]
-    S3 --> S4["4. Start local CONNECT-to-WebSocket relay → inject auth into proxied requests"]
-    S4 --> S5["5. Unlink token file → token exists only in heap memory after this point"]
+```
+1. Read session token from /run/ccr/session_token
+2. Set prctl(PR_SET_DUMPABLE, 0) → block ptrace from same-UID processes
+3. Download CCR CA certificate → concatenate with system bundle
+4. Start local CONNECT-to-WebSocket relay → inject auth into proxied requests
+5. Unlink token file → token exists only in heap memory after this point
 ```
 
 - `NO_PROXY` exclusions: Anthropic, GitHub, package registries, IMDS
